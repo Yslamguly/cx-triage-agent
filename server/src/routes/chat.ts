@@ -3,6 +3,7 @@ import { LLMProvider } from "../types";
 import { createProvider } from "../providers";
 import { runOrchestrator } from "../orchestrator";
 import { getOrCreateSession, getSession } from "../sessions";
+import { rateLimiter } from "../middleware/rateLimiter";
 import { Message } from "../types";
 
 export const chatRouter = Router();
@@ -13,7 +14,7 @@ function getProvider(): LLMProvider {
   return provider;
 }
 
-chatRouter.post("/chat", async (req: Request, res: Response) => {
+chatRouter.post("/chat", rateLimiter, async (req: Request, res: Response) => {
   try {
     const { sessionId, message } = req.body as {
       sessionId?: string;
