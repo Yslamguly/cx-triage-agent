@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { LLMProvider } from "../types";
 import { createProvider } from "../providers";
 import { runOrchestrator } from "../orchestrator";
 import { getOrCreateSession, getSession } from "../sessions";
@@ -6,7 +7,11 @@ import { Message } from "../types";
 
 export const chatRouter = Router();
 
-const provider = createProvider();
+let provider: LLMProvider;
+function getProvider(): LLMProvider {
+  if (!provider) provider = createProvider();
+  return provider;
+}
 
 chatRouter.post("/chat", async (req: Request, res: Response) => {
   try {
@@ -34,7 +39,7 @@ chatRouter.post("/chat", async (req: Request, res: Response) => {
     session.messages.push(userMsg);
 
     const { result, newMessages } = await runOrchestrator(
-      provider,
+      getProvider(),
       session.messages
     );
 

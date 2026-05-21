@@ -1,6 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
-
+import "./env";
 import express from "express";
 import cors from "cors";
 import { chatRouter } from "./routes/chat";
