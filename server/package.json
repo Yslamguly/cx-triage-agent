@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "eval": "tsx src/eval/runner.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
@@ -15,6 +16,7 @@
     "express": "^4.21.0",
     "groq-sdk": "^1.2.0",
     "openai": "^4.86.0",
+    "serverless-http": "^4.0.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
