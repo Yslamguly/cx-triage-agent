@@ -13,7 +13,11 @@ export interface HandoffSummary {
   summary: string;
 }
 
-const API_BASE = "/api";
+// In dev: Vite proxies /api → localhost:3001 (see vite.config.ts)
+// In prod: VITE_API_BASE is set to the Lambda API Gateway URL
+const API_BASE = import.meta.env.VITE_API_BASE
+  ? `${import.meta.env.VITE_API_BASE}/api`
+  : "/api";
 
 export async function sendMessage(
   message: string,

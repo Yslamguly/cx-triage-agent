@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: CX Triage Agent — AI customer support backend
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Runtime: nodejs20.x
+
+Parameters:
+  LLMProvider:
+    Type: String
+    Default: groq
+    AllowedValues:
+      - openai
+      - anthropic
+      - gemini
+      - groq
+  LLMApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key for the selected LLM provider
+
+Resources:
+  CXTriageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: dist/lambda.handler
+      CodeUri: .
+      Description: CX Triage Agent API
+      Environment:
+        Variables:
+          LLM_PROVIDER: !Ref LLMProvider
+          OPENAI_API_KEY: !If [IsOpenAI, !Ref LLMApiKey, ""]
+          ANTHROPIC_API_KEY: !If [IsAnthropic, !Ref LLMApiKey, ""]
+          GEMINI_API_KEY: !If [IsGemini, !Ref LLMApiKey, ""]
+          GROQ_API_KEY: !If [IsGroq, !Ref LLMApiKey, ""]
+      Events:
+        ApiCatchAll:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+Conditions:
+  IsOpenAI: !Equals [!Ref LLMProvider, "openai"]
+  IsAnthropic: !Equals [!Ref LLMProvider, "anthropic"]
+  IsGemini: !Equals [!Ref LLMProvider, "gemini"]
+  IsGroq: !Equals [!Ref LLMProvider, "groq"]
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"

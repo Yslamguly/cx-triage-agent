@@ -1,0 +1,178 @@
+# ──────────────────────────────────────────────────
+#  CI/CD Pipeline for CX Triage Agent
+# ──────────────────────────────────────────────────
+# WHAT TRIGGERS THIS?
+#   - Every push to the "main" branch
+#   - Every pull request targeting "main" (CI only, no deploy)
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# ──────────────────────────────────────────────────
+#  JOB 1: CI — Type-check & verify
+# ──────────────────────────────────────────────────
+# This runs on EVERY push and PR.
+# If this fails, nothing deploys.
+
+jobs:
+  ci:
+    name: Type-check & verify
+    runs-on: ubuntu-latest    # GitHub provides a fresh Ubuntu VM
+
+    steps:
+      # Step 1: Pull your code into the VM
+      - uses: actions/checkout@v4
+
+      # Step 2: Install Node.js (same version as your machine)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Step 3: Install server dependencies
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+        # "npm ci" is like "npm install" but:
+        #   - uses package-lock.json exactly (reproducible)
+        #   - faster in CI (skips the resolution step)
+
+      # Step 4: Type-check the server
+      - name: Type-check server
+        working-directory: server
+        run: npx tsc --noEmit
+        # If any TypeScript error exists, this fails the pipeline
+
+      # Step 5: Install client dependencies
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      # Step 6: Type-check the client
+      - name: Type-check client
+        working-directory: client
+        run: npx tsc --noEmit
+
+      # Step 7: Build client (catches build-time errors too)
+      - name: Build client
+        working-directory: client
+        run: npm run build
+
+  # ──────────────────────────────────────────────────
+  #  JOB 2: Deploy Backend — Lambda via SAM
+  # ──────────────────────────────────────────────────
+  # Only runs on push to main (not on PRs).
+  # Depends on CI passing first.
+
+  deploy-backend:
+    name: Deploy backend to Lambda
+    runs-on: ubuntu-latest
+    needs: ci                   # ← waits for CI job to pass
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # ↑ Only deploy on push to main, never on pull requests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Install and build the server
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: server
+        run: npm run build
+
+      # Set up AWS credentials from GitHub Secrets
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-central-1' }}
+          # ↑ secrets are encrypted values stored in GitHub repo settings
+          #   vars are plain-text config values (non-sensitive)
+
+      # Install SAM CLI
+      - uses: aws-actions/setup-sam@v2
+
+      # SAM build — packages your code for Lambda
+      - name: SAM build
+        working-directory: server
+        run: sam build
+
+      # SAM deploy — pushes to AWS
+      - name: SAM deploy
+        working-directory: server
+        run: |
+          sam deploy \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --stack-name cx-triage-agent \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              "LLMProvider=${{ vars.LLM_PROVIDER || 'groq' }}" \
+              "LLMApiKey=${{ secrets.LLM_API_KEY }}"
+          # --no-confirm-changeset: don't prompt (we're in CI, no human)
+          # --no-fail-on-empty-changeset: if nothing changed, don't error
+
+  # ──────────────────────────────────────────────────
+  #  JOB 3: Deploy Frontend — S3 + CloudFront
+  # ──────────────────────────────────────────────────
+  # Builds the React app and uploads static files to S3.
+  # CloudFront serves them globally with HTTPS.
+
+  deploy-frontend:
+    name: Deploy frontend to S3
+    runs-on: ubuntu-latest
+    needs: ci                   # ← also waits for CI to pass
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      # Build with the Lambda API URL injected
+      - name: Build client
+        working-directory: client
+        run: npm run build
+        env:
+          VITE_API_BASE: ${{ vars.API_BASE_URL }}
+          # ↑ Set this to your API Gateway URL after first backend deploy
+          #   e.g. https://abc123.execute-api.eu-central-1.amazonaws.com
+
+      # Set up AWS credentials
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'eu-central-1' }}
+
+      # Upload built files to S3
+      - name: Upload to S3
+        run: |
+          aws s3 sync client/dist/ s3://${{ vars.S3_BUCKET_NAME }} \
+            --delete
+          # --delete removes old files not in the new build
+
+      # Invalidate CloudFront cache so users get the new version
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+        # This tells CloudFront: "forget all cached files, fetch fresh from S3"
