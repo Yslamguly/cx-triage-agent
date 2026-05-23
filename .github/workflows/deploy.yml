@@ -171,9 +171,10 @@ jobs:
           # --delete removes old files not in the new build
 
       # Invalidate CloudFront cache so users get the new version
+      # Only runs if CLOUDFRONT_DISTRIBUTION_ID is set in GitHub vars
       - name: Invalidate CloudFront cache
+        if: vars.CLOUDFRONT_DISTRIBUTION_ID != ''
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"
-        # This tells CloudFront: "forget all cached files, fetch fresh from S3"
