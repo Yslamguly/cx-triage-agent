@@ -16,7 +16,7 @@ app.get("/health", (_req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`CX Triage Agent server running on port ${PORT}`);
-  console.log(`LLM Provider: ${process.env.LLM_PROVIDER || "openai"}`);
+  console.log(`LLM Provider: ${process.env.LLM_PROVIDER || "groq"}`);
 });
 
 export { app };
