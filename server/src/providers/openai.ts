@@ -6,6 +6,7 @@ import {
   ToolDefinition,
   ToolCall,
 } from "../types";
+import { OPENAI_MODEL } from "../config";
 
 export class OpenAIProvider implements LLMProvider {
   private client: OpenAI;
@@ -13,7 +14,7 @@ export class OpenAIProvider implements LLMProvider {
 
   constructor() {
     this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    this.model = process.env.OPENAI_MODEL || "gpt-4o";
+    this.model = OPENAI_MODEL;
   }
 
   async chat(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {

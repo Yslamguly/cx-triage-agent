@@ -11,6 +11,7 @@ import {
   ToolDefinition,
   ToolCall,
 } from "../types";
+import { GROQ_MODEL } from "../config";
 
 export class GroqProvider implements LLMProvider {
   private client: Groq;
@@ -18,7 +19,7 @@ export class GroqProvider implements LLMProvider {
 
   constructor() {
     this.client = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    this.model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+    this.model = GROQ_MODEL;
   }
 
   async chat(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {

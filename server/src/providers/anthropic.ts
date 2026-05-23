@@ -6,6 +6,7 @@ import {
   ToolDefinition,
   ToolCall,
 } from "../types";
+import { ANTHROPIC_MODEL, MAX_RESPONSE_TOKENS } from "../config";
 
 export class AnthropicProvider implements LLMProvider {
   private client: Anthropic;
@@ -13,7 +14,7 @@ export class AnthropicProvider implements LLMProvider {
 
   constructor() {
     this.client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    this.model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+    this.model = ANTHROPIC_MODEL;
   }
 
   async chat(messages: Message[], tools: ToolDefinition[]): Promise<LLMResponse> {
@@ -22,7 +23,7 @@ export class AnthropicProvider implements LLMProvider {
 
     const response = await this.client.messages.create({
       model: this.model,
-      max_tokens: 1024,
+      max_tokens: MAX_RESPONSE_TOKENS,
       system: system || undefined,
       messages: anthropicMessages,
       tools: anthropicTools.length > 0 ? anthropicTools : undefined,
