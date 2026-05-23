@@ -113,6 +113,7 @@ jobs:
         working-directory: server
         run: |
           sam deploy \
+            --s3-bucket cx-triage-frontend
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --stack-name cx-triage-agent \
